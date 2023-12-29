@@ -44,6 +44,11 @@ class BVD_Model:
         return
 
     def plot_s11(self, freq_unit='GHz', method='python', figsize=(12, 4), figscale=1):
+        '''
+        freq_unit: 'GHz', 'MHz', 'KHz', 'default'
+        figsize: (12, 4)
+        figscale: 0.8, 1.2
+        '''
         scale = 1
         if freq_unit == 'GHz':
             scale = 1e9
@@ -56,6 +61,7 @@ class BVD_Model:
         x_label = 'Frequency (' + freq_unit + ')'
         figsize = [figsize[0] * figscale, figsize[1] * figscale]
         plt.figure(figsize=figsize)
+        plt.suptitle('Raw S11 data')
         plt.subplot2grid((2, 3), (0, 0), colspan=2, rowspan=2)
         plt.plot(self.freq / scale, np.absolute(self.s11_pol))
         plt.xlabel(x_label)
@@ -83,21 +89,23 @@ class BVD_Model:
     def Z_background(self, freq, Ls, Rs, Rp, Cp, stack=True):
         N = len(freq)
         freq = freq[: N//2]
-        Ls = Ls*1e-9 
-        Cp= Cp*1e-9 
+        Ls = Ls*1e-9 # use nH unit
+        Cp= Cp*1e-9 # use nF unit
         Omega = freq * 2 * np.pi
-        Z_imag = -(Omega*np.square(Rp)*Cp) / (1+np.square(Omega*Rp*Cp)) + Omega*Ls
+
         Z_real = (Rp / (1 + np.square(Omega * Cp * Rp))) + Rs
+        Z_imag = -(Omega*np.square(Rp)*Cp) / (1+np.square(Omega*Rp*Cp)) + Omega*Ls
+
         if stack is False:
             return Z_real + Z_imag * 1j
         else:
             return np.hstack((Z_real, Z_imag))
         
-    def Z_resonance(self, freq, Lm, Cm, Rm, stack=True):
+    def Y_resonance(self, freq, Lm, Cm, Rm, stack=True):
         N = len(freq)
         freq = freq[: N//2]
-        Lm = Lm*1e-9 
-        Cm = Cm*1e-9 
+        Lm = Lm*1e-9 # use nH unit
+        Cm = Cm*1e-9 # use nF unit
         Omega = freq * 2 * np.pi
 
         Y_real = Rm / (np.square(Rm) + np.square(Omega * Lm - 1 / (Omega * Cm)))
@@ -108,10 +116,23 @@ class BVD_Model:
         else:
             return np.hstack((Y_real, Y_imag))
 
-    def fit_BVD_model_background(self, start1, end1, start2, end2, BG_fit_params_manual=None, p0=None,
-                                ftol = 1e-6, bounds=None, plot_fit=True, freq_unit='GHz', 
-                                figsize=(14, 4), figscale=1):
-
+    def fit_BVD_model_background(self, start1, end1, start2, end2, 
+                                 BG_fit_params_manual=None, p0=None, ftol = 1e-6, bounds=None, 
+                                 plot_fit=True, freq_unit='GHz', figsize=(14, 4), figscale=1):
+        '''
+        start1: 0.3e9
+        end1: 0.71e9
+        start2: 0.73e9
+        end2: 1.5e9
+        BG_fit_params_manual: [Ls, Rs, Rp, Cp]
+        p0: [Ls0, Rs0, Rp0, Cp0]
+        ftol: 1e-6
+        bounds: ((0, 0, 0, 0), (np.inf, np.inf, np.inf, np.inf))
+        plot_fit: True
+        freq_unit: 'GHz', 'MHz', 'KHz', 'default'
+        figsize: (12, 4)
+        figscale: 0.8, 1.2
+        '''
         freq = self.freq
         p0 = [0.8, 1e-6, 2000, 1e-3] # LS, RS, RP, CP
         if bounds is None:
@@ -129,18 +150,21 @@ class BVD_Model:
         y_fit_full_stacked = np.hstack((y_fit_full.real, y_fit_full.imag))
         x_fit_full_stacked = np.hstack((x_fit_full.real, x_fit_full.imag))
 
-        popt, _, = curve_fit(lambda freq, Ls, Rs, Rp, Cp:
-                                self.Z_background(freq, Ls, Rs, Rp, Cp),
-                                x_fit_full_stacked,
-                                y_fit_full_stacked,
-                                p0= p0,
-                                ftol=ftol
-                            )
-
-        Ls, Rs, Rp, Cp = popt[0], popt[1], popt[2], popt[3] 
         if BG_fit_params_manual is not None:
             Ls, Rs, Rp, Cp = BG_fit_params_manual[0], BG_fit_params_manual[1], BG_fit_params_manual[2], BG_fit_params_manual[3] 
-
+        else:
+            # perform fitting
+            popt, _, = curve_fit(lambda freq, Ls, Rs, Rp, Cp:
+                                    self.Z_background(freq, Ls, Rs, Rp, Cp),
+                                    x_fit_full_stacked,
+                                    y_fit_full_stacked,
+                                    p0= p0,
+                                    ftol=ftol
+                                )
+            # Assign the fitted parameters
+            Ls, Rs, Rp, Cp = popt[0], popt[1], popt[2], popt[3] 
+        
+        # Calculate the fitted admittance & impedance
         Z_fit = self.Z_background(np.hstack((freq, freq)), Ls, Rs, Rp, Cp, stack=False)
         s11_fit = self.convert_imped_to_s11(Z_fit)
 
@@ -157,7 +181,7 @@ class BVD_Model:
             x_label = 'Frequency (' + freq_unit + ')'
             figsize = [figsize[0] * figscale, figsize[1] * figscale]
             plt.figure(figsize=figsize)
-            plt.suptitle('Background Fitting')
+            plt.suptitle('Background fitting')
             plt.subplot2grid((2, 4), (0, 0), colspan=2, rowspan=2)
             plt.plot(freq / scale, abs(self.s11_pol))
             plt.plot(freq / scale, abs(s11_fit), linestyle='dashed')
@@ -197,11 +221,23 @@ class BVD_Model:
 
         return s11_fit, Z_fit, popt
 
-    def fit_BVD_model_resonances(self, start1, end1, start2, end2,     
-                                bg_params=None, rs_manual_fitting_params = None, 
-                                ftol=1e-6, bounds=None, plot_fit = True, freq_unit='GHz', 
-                                figsize=(14, 4), figscale=1):
-
+    def fit_BVD_model_resonances(self, start1, end1, start2, end2, bg_params, 
+                                 RS_fit_params_manual=None, ftol=1e-6, bounds=None, 
+                                 plot_fit=True, freq_unit='GHz', figsize=(14, 4), figscale=1):
+        '''
+        start1: 0.3e9
+        end1: 0.71e9
+        start2: 0.73e9
+        end2: 1.5e9
+        bg_params: [Ls, Rs, Rp, Cp]
+        RS_fit_params_manual: [Lm, Cm, Rm]
+        ftol: 1e-6
+        bounds: ((0, 0, 0, 0), (np.inf, np.inf, np.inf, np.inf))
+        plot_fit: True
+        freq_unit: 'GHz', 'MHz', 'KHz', 'default'
+        figsize: (12, 4)
+        figscale: 0.8, 1.2
+        '''
         freq = self.freq
         # Find the indices of the range in xdata
         start_idx1 = np.argmin(np.abs(freq - start1))
@@ -215,10 +251,9 @@ class BVD_Model:
         y_fit = Y_org[end_idx1:start_idx2]
         x_fit_stacked = np.hstack((x_fit, x_fit))
         y_fit_stacked = np.hstack((y_fit.real, y_fit.imag))
-        # find dip/peak position
+        # Compute initial guesses of [Lm, Cm, Rm]
         w_r = x_fit[np.argmax(y_fit.real)] * 2 * np.pi
         w_l = x_fit[np.argmin(y_fit.imag)] * 2 * np.pi
-
         Rm0 = 1 / np.max(y_fit.real) 
         Lm0 = Rm0 * w_l  / (w_l**2 - w_r**2)
         Cm0 = 1 / Lm0 / (w_r**2)
@@ -230,12 +265,12 @@ class BVD_Model:
             bounds = ((0, 0, 0), (np.inf, np.inf, np.inf))
 
         popt = None
-        if rs_manual_fitting_params is not None:
-            Lm, Cm, Rm = rs_manual_fitting_params[0], rs_manual_fitting_params[1], rs_manual_fitting_params[2]
+        if RS_fit_params_manual is not None:
+            Lm, Cm, Rm = RS_fit_params_manual[0], RS_fit_params_manual[1], RS_fit_params_manual[2]
         else:
             # Perform fitting
             popt, _  = curve_fit(lambda freq, Lm, Cm, Rm:
-                                    self.Z_resonance(freq, Lm, Cm, Rm),       
+                                    self.Y_resonance(freq, Lm, Cm, Rm),       
                                     x_fit_stacked,
                                     y_fit_stacked,
                                     p0= p0,
@@ -245,9 +280,9 @@ class BVD_Model:
             # Assign the fitted parameters
             Lm, Cm, Rm = popt[0], popt[1], popt[2]
 
-        # Calculate the admittance of the 4 resonances
+        # Calculate the fitted admittance & impedance
         Omega = 2 * np.pi * np.array(freq)
-        Y_fit = self.Z_resonance(np.hstack((freq, freq)), Lm, Cm, Rm, stack=False)
+        Y_fit = self.Y_resonance(np.hstack((freq, freq)), Lm, Cm, Rm, stack=False)
         Z_tot_fit = Rs + 1j * Omega * Ls  + 1 / (1/Rp + 1j * Omega * Cp + Y_fit)
 
         # Convert impedance to s11
@@ -266,7 +301,7 @@ class BVD_Model:
             x_label = 'Frequency (' + freq_unit + ')'
             figsize = [figsize[0] * figscale, figsize[1] * figscale]
             plt.figure(figsize=figsize)
-            plt.suptitle('Resonance Fitting')
+            plt.suptitle('Resonance fitting')
             plt.subplot2grid((2, 4), (0, 0), colspan=2, rowspan=2)
             plt.plot(freq / scale, abs(s11_pol))
             plt.plot(freq / scale, abs(s11_fit), linestyle='dashed')
