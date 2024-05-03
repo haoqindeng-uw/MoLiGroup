@@ -687,6 +687,7 @@ def make_racetrack_ring_omr(cell, upper_width=1.2, lower_width=1.2, racetrack_wi
     upper is upper wg,
     lower is buttom wg.
     '''
+    'change'
     ring_org = offset
     ring = Waveguide.make_at_port(Port(origin=ring_org, angle=0, width=racetrack_width))
     ring.add_straight_segment(length = racetrack_len / 2)
