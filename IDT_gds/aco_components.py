@@ -360,3 +360,181 @@ def make_aco_directional_coupler(cell: Cell, prop_len=200, radius=250, y_displac
 
     return cell
 
+
+def make_racetrack_ring(cell, te0_width=1.2, te2_width=0.39, racetrack_width=1.2, te0_gap=0.1, te2_gap=0.1, te0_coupling_len=100, te2_coupling_len=17,
+                        racetrack_len = 200,
+                        offset=(0,0)):
+    '''
+    te0 is upper wg,
+    te2 is buttom wg.
+    '''
+    ring_org = offset
+    ring = Waveguide.make_at_port(Port(origin=ring_org, angle=0, width=racetrack_width))
+    ring.add_straight_segment(length = racetrack_len / 2)
+    ring.add_bend(radius=50, angle=np.pi)
+    ring.add_straight_segment(length = racetrack_len / 2)
+    pos = ring.origin
+    ring.add_straight_segment(length = racetrack_len / 2)
+    ring.add_bend(radius=50, angle=np.pi)
+    ring.add_straight_segment(length = racetrack_len / 2)   
+
+
+    te0_org = (pos[0], pos[1] + (te0_width/2 + racetrack_width/2 + te0_gap))
+    te0_wg_r = Waveguide.make_at_port(Port(origin=te0_org, angle=0, width=te0_width))
+    te0_wg_r.add_straight_segment(length=te0_coupling_len/2)
+    te0_wg_r.add_bend(radius=40, angle=np.pi/4)
+    te0_wg_r.add_bend(radius=40, angle=-np.pi/4)
+    te0_wg_r.add_straight_segment(length=offset[0] + 375 - te0_wg_r.origin[0] - 50)
+    te0_wg_r.add_bend(radius=50, angle=-np.pi/2)
+    te0_wg_r.add_straight_segment(length=te0_wg_r.origin[1] - (-100 + offset[1]))
+    te0_wg_l = Waveguide.make_at_port(Port(origin=te0_org, angle=np.pi, width=te0_width))
+    te0_wg_l.add_straight_segment(length=te0_coupling_len/2)
+    te0_wg_l.add_bend(radius=40, angle=-np.pi/4)
+    te0_wg_l.add_bend(radius=40, angle=np.pi/4)
+    te0_wg_l.add_straight_segment(length= te0_wg_l.origin[0] -(offset[0] - 375 + 50))
+    te0_wg_l.add_bend(radius=50, angle=np.pi/2)
+    te0_wg_l.add_straight_segment(length=te0_wg_l.origin[1] - (-100 + offset[1]))
+
+    if te0_coupling_len <= 120:
+        te2_org = (ring_org[0], ring_org[1] - (te2_width/2 + racetrack_width/2 + te2_gap))
+        te2_wg_r = Waveguide.make_at_port(Port(origin=te2_org, angle=0, width=te2_width))
+        te2_wg_r.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_r.add_bend(radius=25, angle=-np.pi/4)
+        te2_wg_r.add_bend(radius=25, angle=np.pi/4)
+        te2_wg_r.add_straight_segment(length=offset[0] + 125 - 25 - te2_wg_r.origin[0])
+        te2_wg_r.add_bend(radius=25, angle=-np.pi/2)
+        te2_wg_r.add_straight_segment(length=te2_wg_r.origin[1] - (-100 + offset[1]))
+
+
+        te2_wg_l = Waveguide.make_at_port(Port(origin=te2_org, angle=np.pi, width=te2_width))
+        te2_wg_l.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_l.add_bend(radius=25, angle=np.pi/4)
+        te2_wg_l.add_bend(radius=25, angle=-np.pi/4)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[0] - (offset[0] - 125 + 25) )
+        te2_wg_l.add_bend(radius=25, angle=np.pi/2)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[1] - (-100 + offset[1]))
+    else:
+        bending_radius = 125 - te2_coupling_len / 2
+        te2_org = (ring_org[0], ring_org[1] - (te2_width/2 + racetrack_width/2 + te2_gap))
+        te2_wg_r = Waveguide.make_at_port(Port(origin=te2_org, angle=0, width=te2_width))
+        te2_wg_r.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_r.add_bend(radius=bending_radius, angle=-np.pi/2)
+        te2_wg_r.add_straight_segment(length=te2_wg_r.origin[1] - (-100 + offset[1]))
+
+
+        te2_wg_l = Waveguide.make_at_port(Port(origin=te2_org, angle=np.pi, width=te2_width))
+        te2_wg_l.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_l.add_bend(radius=bending_radius, angle=np.pi/2)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[1] - (-100 + offset[1]))
+
+    coupler1_params = {
+        'width': te0_width,
+        'full_opening_angle': np.deg2rad(40),  # 40
+        'grating_period': 0.7,
+        'grating_ff': 0.85,  # minigap = 30nm
+        # 'ap_max_ff':0.85,
+        'ap_max_ff':0.99,
+        'n_gratings': 20,  # 20
+        'taper_length': 16,  # 16um
+        'n_ap_gratings': 20,  # 20
+    }
+
+    gc1 = GratingCoupler.make_traditional_coupler(origin=te0_wg_r.origin, **coupler1_params)
+    gc2 = GratingCoupler.make_traditional_coupler(origin=te0_wg_l.origin, **coupler1_params)
+    gc3 = GratingCoupler.make_traditional_coupler(origin=te2_wg_r.origin, **coupler1_params)
+    gc4 = GratingCoupler.make_traditional_coupler(origin=te2_wg_l.origin, **coupler1_params)
+
+    cell.add_to_layer(1, convert_to_positive_resist( [ring, te0_wg_r, te0_wg_l, te2_wg_r, te2_wg_l,
+                                                    gc1, gc2, gc3, gc4],  buffer_radius=5))
+
+    return cell
+
+def make_racetrack_ring(cell, te0_width=1.2, te2_width=0.39, racetrack_width=1.2, te0_gap=0.1, te2_gap=0.1, te0_coupling_len=100, te2_coupling_len=17,
+                        racetrack_len = 200,
+                        offset=(0,0)):
+    '''
+    te0 is upper wg,
+    te2 is buttom wg.
+    '''
+    ring_org = offset
+    ring = Waveguide.make_at_port(Port(origin=ring_org, angle=0, width=racetrack_width))
+    ring.add_straight_segment(length = racetrack_len / 2)
+    ring.add_bend(radius=50, angle=np.pi)
+    ring.add_straight_segment(length = racetrack_len / 2)
+    pos = ring.origin
+    ring.add_straight_segment(length = racetrack_len / 2)
+    ring.add_bend(radius=50, angle=np.pi)
+    ring.add_straight_segment(length = racetrack_len / 2)   
+
+
+    te0_org = (pos[0], pos[1] + (te0_width/2 + racetrack_width/2 + te0_gap))
+    te0_wg_r = Waveguide.make_at_port(Port(origin=te0_org, angle=0, width=te0_width))
+    te0_wg_r.add_straight_segment(length=te0_coupling_len/2)
+    te0_wg_r.add_bend(radius=40, angle=np.pi/4)
+    te0_wg_r.add_bend(radius=40, angle=-np.pi/4)
+    te0_wg_r.add_straight_segment(length=offset[0] + 375 - te0_wg_r.origin[0] - 50)
+    te0_wg_r.add_bend(radius=50, angle=-np.pi/2)
+    te0_wg_r.add_straight_segment(length=te0_wg_r.origin[1] - (-100 + offset[1]))
+    te0_wg_l = Waveguide.make_at_port(Port(origin=te0_org, angle=np.pi, width=te0_width))
+    te0_wg_l.add_straight_segment(length=te0_coupling_len/2)
+    te0_wg_l.add_bend(radius=40, angle=-np.pi/4)
+    te0_wg_l.add_bend(radius=40, angle=np.pi/4)
+    te0_wg_l.add_straight_segment(length= te0_wg_l.origin[0] -(offset[0] - 375 + 50))
+    te0_wg_l.add_bend(radius=50, angle=np.pi/2)
+    te0_wg_l.add_straight_segment(length=te0_wg_l.origin[1] - (-100 + offset[1]))
+
+    if te0_coupling_len <= 150:
+        te2_org = (ring_org[0], ring_org[1] - (te2_width/2 + racetrack_width/2 + te2_gap))
+        te2_wg_r = Waveguide.make_at_port(Port(origin=te2_org, angle=0, width=te2_width))
+        te2_wg_r.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_r.add_bend(radius=25, angle=-np.pi/4)
+        te2_wg_r.add_bend(radius=25, angle=np.pi/4)
+        te2_wg_r.add_straight_segment(length=offset[0] + 125 - 25 - te2_wg_r.origin[0])
+        te2_wg_r.add_bend(radius=25, angle=-np.pi/2)
+        te2_wg_r.add_straight_segment(length=te2_wg_r.origin[1] - (-100 + offset[1]))
+
+
+        te2_wg_l = Waveguide.make_at_port(Port(origin=te2_org, angle=np.pi, width=te2_width))
+        te2_wg_l.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_l.add_bend(radius=25, angle=np.pi/4)
+        te2_wg_l.add_bend(radius=25, angle=-np.pi/4)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[0] - (offset[0] - 125 + 25) )
+        te2_wg_l.add_bend(radius=25, angle=np.pi/2)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[1] - (-100 + offset[1]))
+    else:
+        bending_radius = 125 - te2_coupling_len / 2
+        te2_org = (ring_org[0], ring_org[1] - (te2_width/2 + racetrack_width/2 + te2_gap))
+        te2_wg_r = Waveguide.make_at_port(Port(origin=te2_org, angle=0, width=te2_width))
+        te2_wg_r.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_r.add_bend(radius=bending_radius, angle=-np.pi/2)
+        te2_wg_r.add_straight_segment(length=te2_wg_r.origin[1] - (-100 + offset[1]))
+
+
+        te2_wg_l = Waveguide.make_at_port(Port(origin=te2_org, angle=np.pi, width=te2_width))
+        te2_wg_l.add_straight_segment(length=te2_coupling_len/2)
+        te2_wg_l.add_bend(radius=bending_radius, angle=np.pi/2)
+        te2_wg_l.add_straight_segment(length=te2_wg_l.origin[1] - (-100 + offset[1]))
+
+    coupler1_params = {
+        'width': te0_width,
+        'full_opening_angle': np.deg2rad(40),  # 40
+        'grating_period': 0.7,
+        'grating_ff': 0.85,  # minigap = 30nm
+        # 'ap_max_ff':0.85,
+        'ap_max_ff':0.99,
+        'n_gratings': 20,  # 20
+        'taper_length': 16,  # 16um
+        'n_ap_gratings': 20,  # 20
+    }
+
+    gc1 = GratingCoupler.make_traditional_coupler(origin=te0_wg_r.origin, **coupler1_params)
+    gc2 = GratingCoupler.make_traditional_coupler(origin=te0_wg_l.origin, **coupler1_params)
+    gc3 = GratingCoupler.make_traditional_coupler(origin=te2_wg_r.origin, **coupler1_params)
+    gc4 = GratingCoupler.make_traditional_coupler(origin=te2_wg_l.origin, **coupler1_params)
+
+    # cell.add_to_layer(1, convert_to_positive_resist( [ring, te0_wg_r, te0_wg_l, te2_wg_r, te2_wg_l,
+    #                                                 gc1, gc2, gc3, gc4],  buffer_radius=5))
+    cell.add_to_layer(1, convert_to_positive_resist( [ring, te0_wg_r, te0_wg_l,
+                                                    gc1, gc2],  buffer_radius=5))
+
+    return cell

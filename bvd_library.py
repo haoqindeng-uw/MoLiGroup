@@ -29,7 +29,7 @@ class BVD_Model:
         self.file_name = file_name
         if file_name.endswith('.s2p'):
             data = rf.Network(file_name)
-            self.s11_pol = data.s[:,0,0]
+            self.s11_pol = data.s[:,1,1]
             self.freq = data.f
         elif file_name.endswith('.prn'):
             import matlab.engine
