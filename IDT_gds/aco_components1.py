@@ -817,7 +817,7 @@ def make_racetrack_ring_omr(cell, upper_width=1.2, lower_width=1.2, racetrack_wi
     return cell
 
 def make_poly_ring(cell, ring_radius=50, ring_width=1.2, wg_width=0.9, gap=0.07, coupling_len=20,
-                        offset=(0,0)):
+                        offset=(0,0), apodize=False):
 
     ring_org = offset
     ring = Waveguide.make_at_port(Port(origin=ring_org, angle=0, width=ring_width))
@@ -840,7 +840,7 @@ def make_poly_ring(cell, ring_radius=50, ring_width=1.2, wg_width=0.9, gap=0.07,
         wg_r.add_bend(radius=offset[0] + 125 - pos[0], angle=-np.pi/2)
 
     pos = wg_r.origin
-    wg_r.add_straight_segment(length=pos[1] - (offset[1] - 100))
+    wg_r.add_straight_segment(length=pos[1] - (offset[1] - 300))
 
     wg_l = Waveguide.make_at_port(Port(origin=(ring_org[0], ring_org[1] - ring_width/2 - wg_width/2 - gap), angle=-np.pi, width=wg_width))
     wg_l.add_bend(radius=wg_radius, angle=-coupling_angle)
@@ -854,7 +854,7 @@ def make_poly_ring(cell, ring_radius=50, ring_width=1.2, wg_width=0.9, gap=0.07,
         wg_l.add_bend(radius=abs(offset[0] - 125 - pos[0]), angle=np.pi/2)
     
     pos = wg_l.origin
-    wg_l.add_straight_segment(length=pos[1] - (offset[1] - 100))
+    wg_l.add_straight_segment(length=pos[1] - (offset[1] - 300))
 
 
     coupler1_params = {
@@ -864,10 +864,23 @@ def make_poly_ring(cell, ring_radius=50, ring_width=1.2, wg_width=0.9, gap=0.07,
         'grating_ff': 0.84,  # minigap = 30nm
         # 'ap_max_ff':0.85,
         'ap_max_ff':0.99,
-        'n_gratings': 20,  # 20
+        'n_gratings': 40,  # 20
         'taper_length': 16,  # 16um
-        'n_ap_gratings': 20,  # 20
+        'n_ap_gratings': 0,  # 20
     }
+
+    if apodize is True:
+        coupler1_params = {
+            'width': wg_width,
+            'full_opening_angle': np.deg2rad(40),  # 40
+            'grating_period': 0.7,
+            'grating_ff': 0.84,  # minigap = 30nm
+            # 'ap_max_ff':0.85,
+            'ap_max_ff':0.99,
+            'n_gratings': 40,  # 20
+            'taper_length': 16,  # 16um
+            'n_ap_gratings': 20,  # 20
+        }
 
     gc1 = GratingCoupler.make_traditional_coupler(origin=wg_r.origin, **coupler1_params)
     gc2 = GratingCoupler.make_traditional_coupler(origin=wg_l.origin, **coupler1_params)
