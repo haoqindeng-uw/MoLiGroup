@@ -22,14 +22,17 @@ class BVD_Model:
         self.freq = None
         self.Z_org = None
 
-    def load_file(self, file_name, normalize=True):
+    def load_file(self, file_name, normalize=True, s_matrix='11'):
         '''
         supports loading both the '.s2p' and '.prn' file.
         '''
+        idx0 = int(s_matrix[0]) - 1
+        idx1 = int(s_matrix[1]) - 1 
+
         self.file_name = file_name
         if file_name.endswith('.s2p'):
             data = rf.Network(file_name)
-            self.s11_pol = data.s[:,1,1]
+            self.s11_pol = data.s[:,idx0, idx1]
             self.freq = data.f
         elif file_name.endswith('.prn'):
             import matlab.engine
@@ -64,6 +67,7 @@ class BVD_Model:
         plt.suptitle('Raw S11 data')
         plt.subplot2grid((2, 3), (0, 0), colspan=2, rowspan=2)
         plt.plot(self.freq / scale, np.absolute(self.s11_pol))
+        print(self.freq.shape)
         plt.xlabel(x_label)
         plt.ylabel('|S11|')
         plt.subplot2grid((2, 3), (0, 2))
