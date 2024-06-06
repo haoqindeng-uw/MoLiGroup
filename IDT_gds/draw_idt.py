@@ -27,7 +27,8 @@ def rectangular_xywh(center_x, center_y, length, width):
     polygon = Polygon(outer_corners)
     return polygon
 
-def make_single_idt(cell:Cell, pos=[0,0], zno=False, orientation='right', aperture=15, pair_num=50, pitch=1.6, finger_bias=0.005, round_buffer=1, pair=False, pair_distance=0, displacement=0):
+def make_idt(cell=None, pos=[0,0], pair=False, aperture=15, pair_num=50, pitch=1.6, finger_bias=0.005,
+            zno=False, orientation='right', pair_distance=0, displacement_y=0):
 
     '''fingers'''
     finger_offset = 0.75
@@ -62,20 +63,20 @@ def make_single_idt(cell:Cell, pos=[0,0], zno=False, orientation='right', apertu
     '''arms'''
     top_arm_origin = [pos[0], pos[1] + aperture/2]
     bottom_arm_origin = [pos[0], pos[1] - aperture/2]
-    arm_len = pitch * pair_num + pitch/2
-    arm_width = 3
-    top_arm_center_x = pos[0] - arm_len/2 +pitch/4
+    arm_len = pitch * pair_num + 10
+    arm_width = 5
+    top_arm_center_x = pos[0] - arm_len/2 + 5
     top_arm_center_y = pos[1] + aperture/2 + arm_width/2
     top_arm = rectangular_xywh(center_x=top_arm_center_x, center_y=top_arm_center_y, length=arm_len, width=arm_width)
 
-    bottom_arm_center_x = pos[0] - arm_len/2  + pitch/4
+    bottom_arm_center_x = pos[0] - arm_len/2 + 5
     bottom_arm_center_y = pos[1] - aperture/2 - arm_width/2
     bottom_arm = rectangular_xywh(center_x=bottom_arm_center_x, center_y=bottom_arm_center_y, length=arm_len, width=arm_width)
 
     idt = geometric_union([top_arm, bottom_arm, top_fingers, bottom_fingers])
 
     '''pads'''
-    pad_gap = 10
+    pad_gap = 12
     len_tot = 450
 
     pad3_len = 250
@@ -104,32 +105,52 @@ def make_single_idt(cell:Cell, pos=[0,0], zno=False, orientation='right', apertu
     
     pad5_center_x = (pad1_center_x - pad1_len/2  + (pad2_center_x - pad2_len/2 - pad_gap)) / 2
     pad5_len = ((pad2_center_x - pad2_len/2 - pad_gap) - (pad1_center_x - pad1_len/2))
-    print(pos[1] - 120)
     pad5_center_y = (pad3_center_y - pad3_width/2 - pad_gap + (pos[1] - aperture/2 - 120)) / 2
-    print(pad3_center_y)
-    print(pad5_center_y)
     pad5_width = pad3_center_y - pad3_width/2 - pad_gap - (pad2_center_y - pad2_width/2)
     pad5 = rectangular_xywh(center_x=pad5_center_x, center_y=pad5_center_y, length=pad5_len, width=pad5_width)
 
     pads = geometric_union([pad1, pad2, pad3, pad4, pad5])
+    pads = translate(pads, xoff=-(arm_len-3))
+    pads = pads.buffer(3, join_style=1).buffer(-2, join_style=1)
 
     '''zno pads'''
-    if zno is True:
-        zno_pads = geometric_union([pads, idt])
-        zno = zno_pads.buffer(10)
-        cell.add_to_layer(2, zno)
+    zno_pad = rectangular_xywh(center_x=pad1_center_x, center_y=pos[1], length=pad1_len, width=240+aperture)
+    zno_pad = zno_pad.buffer(6)
 
-    cell.add_to_layer(3, idt)
-    cell.add_to_layer(4, pads)
 
+
+    '''idt pair'''
     if pair is True:
         mirror_center_x = pos[0] + pair_distance/2
         pads_mirror = scale(pads, xfact=-1.0, origin=(mirror_center_x, 0))
         idt_mirror = scale(idt, xfact=-1.0, origin=(mirror_center_x, 0))
-        pads_mirror = translate(pads_mirror, yoff=displacement)
-        idt_mirror = translate(idt_mirror, yoff=displacement)
-        # pads_mirror = translate(pads_mirror, xoff=300)
-        cell.add_to_layer(3, idt_mirror)
-        cell.add_to_layer(4, pads_mirror)
+        zno_pad_mirror = scale(zno_pad, xfact=-1.0, origin=(mirror_center_x, 0))
+        
+        pads_mirror = translate(pads_mirror, yoff=displacement_y)
+        idt_mirror = translate(idt_mirror, yoff=displacement_y) 
+        zno_pad_mirror = translate(zno_pad_mirror, yoff=displacement_y)
 
-    return cell
+        if cell is not None:
+            if zno is True:
+                cell.add_to_layer(2, geometric_union([zno_pad, zno_pad_mirror]))
+            cell.add_to_layer(3, geometric_union([idt, idt_mirror]))
+            cell.add_to_layer(4, geometric_union([pads, pads_mirror]))
+
+        pos_mirror = [pos[0] + pair_distance, pos[1] + displacement_y]
+
+        return cell, idt, idt_mirror, pads, pads_mirror, zno_pad, zno_pad_mirror, pos, pos_mirror
+
+    else:
+        if orientation == 'left':
+            mirror_center_x = pos[0]
+            pads = scale(pads, xfact=-1.0, origin=(mirror_center_x, 0))
+            idt = scale(idt, xfact=-1.0, origin=(mirror_center_x, 0))
+            zno_pad = scale(zno_pad, xfact=-1.0, origin=(mirror_center_x, 0))
+
+        if cell is not None:
+            if zno is True:
+                cell.add_to_layer(2, zno_pad)
+            cell.add_to_layer(3, idt)
+            cell.add_to_layer(4, pads)
+
+    return cell, idt, pads, zno_pad, pos
